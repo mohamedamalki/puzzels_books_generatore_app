@@ -1,0 +1,799 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+model AuthRateLimit {
+  key       String @id
+  attempts  Int
+  expiresAt DateTime @db.Timestamptz(3)
+  @@index([expiresAt])
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum BookStatus {
+  DRAFT
+  GENERATING
+  VALIDATING
+  NEEDS_REVIEW
+  VALIDATED
+  READY
+  EXPORTED
+  ARCHIVED
+  FAILED
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  RETRY_WAIT
+  SUCCEEDED
+  NEEDS_REVIEW
+  FAILED
+  CANCELLED
+}
+
+enum JobType {
+  BOOK_GENERATION
+  PAGE_REGENERATION
+  SERIES_GENERATION
+  PREVIEW_GENERATION
+  COVER_GENERATION
+  EXPORT
+  VALIDATION
+}
+
+enum PageRole {
+  FRONT_MATTER
+  ACTIVITY
+  ANSWER
+  BACK_MATTER
+}
+
+enum EvidenceSource {
+  MANUAL_ESTIMATE
+  AI_ESTIMATE
+  REAL_MARKET_DATA
+}
+
+enum ContentKind {
+  WORD
+  VOCABULARY
+  QUESTION
+  CLUE
+  PROMPT
+  QUOTE
+}
+
+enum ValidationStatus {
+  PENDING
+  RUNNING
+  PASSED
+  FAILED
+}
+
+enum Severity {
+  INFO
+  WARNING
+  ERROR
+}
+
+enum FingerprintKind {
+  PAGE
+  PUZZLE
+  WORD_SET
+  QUESTION
+  BOOK
+}
+
+model User {
+  id              String              @id @default(uuid()) @db.Uuid
+  email           String              @unique @db.VarChar(320)
+  name            String?             @db.VarChar(160)
+  emailVerifiedAt DateTime?           @db.Timestamptz(3)
+  passwordHash    String?
+  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @db.Timestamptz(3)
+  accounts        AuthAccount[]
+  sessions        Session[]
+  tokens          VerificationToken[]
+  books           Book[]
+  themes          Theme[]
+  audiences       Audience[]
+  niches          Niche[]
+  content         ContentItem[]
+  series          BookSeries[]
+  bundles         Bundle[]
+  assets          Asset[]
+  jobs            GenerationJob[]
+  providers       AIProvider[]
+  prompts         PromptTemplate[]
+  bookTemplates   BookTemplate[]
+  coverTemplates  CoverTemplate[]
+  policies        QualityPolicy[]
+  approvals       BookApproval[]      @relation("Approver")
+}
+
+model AuthAccount {
+  id                String @id @default(uuid()) @db.Uuid
+  userId            String @db.Uuid
+  provider          String @db.VarChar(80)
+  providerAccountId String @db.VarChar(255)
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String   @unique @db.Char(64)
+  expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+model VerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  purpose   String    @db.VarChar(40)
+  tokenHash String    @unique @db.Char(64)
+  expiresAt DateTime  @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+// Global capability catalogs. Keys, not enums, identify extensible book/puzzle types.
+model BookType {
+  id                  String  @id @default(uuid()) @db.Uuid
+  key                 String  @unique @db.VarChar(80)
+  name                String  @db.VarChar(160)
+  pluginVersion       String  @db.VarChar(40)
+  configurationSchema Json
+  enabled             Boolean @default(false)
+  books               Book[]
+}
+
+model PuzzleType {
+  id            String   @id @default(uuid()) @db.Uuid
+  key           String   @unique @db.VarChar(80)
+  engineVersion String   @db.VarChar(40)
+  puzzles       Puzzle[]
+}
+
+model Theme {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @db.Uuid
+  name      String        @db.VarChar(160)
+  slug      String        @db.VarChar(160)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subthemes Subtheme[]
+  books     Book[]
+  content   ContentItem[]
+
+  @@unique([userId, id])
+  @@unique([userId, slug])
+}
+
+model Subtheme {
+  id      String        @id @default(uuid()) @db.Uuid
+  userId  String        @db.Uuid
+  themeId String        @db.Uuid
+  name    String        @db.VarChar(160)
+  slug    String        @db.VarChar(160)
+  theme   Theme         @relation(fields: [userId, themeId], references: [userId, id], onDelete: Cascade)
+  books   Book[]
+  content ContentItem[]
+
+  @@unique([userId, themeId, id])
+  @@unique([themeId, slug])
+}
+
+model Audience {
+  id       String @id @default(uuid()) @db.Uuid
+  userId   String @db.Uuid
+  name     String @db.VarChar(160)
+  minAge   Int?
+  maxAge   Int?
+  settings Json
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  books    Book[]
+
+  @@unique([userId, id])
+  @@unique([userId, name])
+}
+
+model Niche {
+  id          String          @id @default(uuid()) @db.Uuid
+  userId      String          @db.Uuid
+  keyword     String          @db.VarChar(300)
+  mainNiche   String          @db.VarChar(160)
+  subNiche    String?         @db.VarChar(160)
+  audience    String          @db.VarChar(160)
+  ageGroup    String?         @db.VarChar(80)
+  format      String          @db.VarChar(80)
+  difficulty  String          @db.VarChar(40)
+  seasonality String?         @db.VarChar(160)
+  language    String          @db.VarChar(35)
+  notes       String?
+  createdAt   DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime        @updatedAt @db.Timestamptz(3)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  research    NicheResearch[]
+
+  @@unique([userId, id])
+  @@index([userId, createdAt, id])
+}
+
+model NicheResearch {
+  id               String         @id @default(uuid()) @db.Uuid
+  userId           String         @db.Uuid
+  nicheId          String         @db.Uuid
+  source           EvidenceSource
+  sourceUrl        String?
+  observedAt       DateTime       @db.Timestamptz(3)
+  demand           Int
+  competition      Int
+  specificity      Int
+  evergreen        Int
+  commercialIntent Int
+  audienceFit      Int
+  scalability      Int
+  seriesPotential  Int
+  opportunityScore Int
+  scoringVersion   String         @db.VarChar(40)
+  evidence         Json
+  niche            Niche          @relation(fields: [userId, nicheId], references: [userId, id], onDelete: Cascade)
+
+  @@index([userId, nicheId, observedAt])
+}
+
+// Shared metadata plus strongly typed extensions; trivia is Question(kind=TRIVIA).
+model ContentItem {
+  id            String            @id @default(uuid()) @db.Uuid
+  userId        String            @db.Uuid
+  kind          ContentKind
+  text          String
+  canonicalHash String            @db.Char(64)
+  themeId       String?           @db.Uuid
+  subthemeId    String?           @db.Uuid
+  language      String            @db.VarChar(35)
+  difficulty    String            @db.VarChar(40)
+  minAge        Int?
+  maxAge        Int?
+  source        String?
+  aiGenerated   Boolean           @default(false)
+  approved      Boolean           @default(false)
+  usageCount    Int               @default(0)
+  qualityScore  Int?
+  createdAt     DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime          @updatedAt @db.Timestamptz(3)
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme         Theme?            @relation(fields: [userId, themeId], references: [userId, id])
+  subtheme      Subtheme?         @relation(fields: [userId, themeId, subthemeId], references: [userId, themeId, id])
+  word          Word?
+  vocabulary    Vocabulary?
+  question      Question?
+  clue          Clue?
+  categories    ContentCategory[]
+  usages        ContentUsage[]
+
+  @@unique([userId, id])
+  @@unique([userId, kind, language, canonicalHash])
+  @@index([userId, kind, language, approved])
+  @@index([userId, themeId, subthemeId])
+}
+
+model Word {
+  contentItemId String      @id @db.Uuid
+  normalized    String      @db.VarChar(160)
+  length        Int
+  content       ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+}
+
+model Vocabulary {
+  contentItemId  String      @id @db.Uuid
+  sourceLanguage String      @db.VarChar(35)
+  targetLanguage String      @db.VarChar(35)
+  translation    String
+  level          String      @db.VarChar(40)
+  pronunciation  String?
+  content        ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+}
+
+model Question {
+  contentItemId  String      @id @db.Uuid
+  kind           String      @db.VarChar(40)
+  correctAnswer  String
+  wrongAnswers   String[]
+  explanation    String?
+  sourceRequired Boolean     @default(true)
+  confidence     Decimal?    @db.Decimal(5, 4)
+  reviewRequired Boolean     @default(true)
+  content        ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+}
+
+model Clue {
+  contentItemId String      @id @db.Uuid
+  answer        String      @db.VarChar(160)
+  content       ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+}
+
+model Category {
+  id    String            @id @default(uuid()) @db.Uuid
+  key   String            @unique @db.VarChar(80)
+  name  String            @db.VarChar(160)
+  items ContentCategory[]
+}
+
+model ContentCategory {
+  contentItemId String      @db.Uuid
+  categoryId    String      @db.Uuid
+  content       ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  category      Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([contentItemId, categoryId])
+}
+
+model Book {
+  id                     String          @id @default(uuid()) @db.Uuid
+  userId                 String          @db.Uuid
+  title                  String          @db.VarChar(240)
+  subtitle               String?         @db.VarChar(400)
+  slug                   String          @db.VarChar(260)
+  bookTypeId             String          @db.Uuid
+  themeId                String?         @db.Uuid
+  subthemeId             String?         @db.Uuid
+  audienceId             String?         @db.Uuid
+  seriesId               String?         @db.Uuid
+  seriesOrder            Int?
+  language               String          @db.VarChar(35)
+  difficulty             String          @db.VarChar(40)
+  trimWidth              Decimal         @db.Decimal(5, 2)
+  trimHeight             Decimal         @db.Decimal(5, 2)
+  requestedActivityPages Int
+  pageCount              Int             @default(0)
+  interiorType           String          @db.VarChar(30)
+  typography             String          @db.VarChar(30)
+  generationSeed         String          @db.VarChar(128)
+  uniquenessScore        Int?
+  status                 BookStatus      @default(DRAFT)
+  currentRevision        Int             @default(1)
+  createdAt              DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime        @updatedAt @db.Timestamptz(3)
+  user                   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookType               BookType        @relation(fields: [bookTypeId], references: [id])
+  theme                  Theme?          @relation(fields: [userId, themeId], references: [userId, id])
+  subtheme               Subtheme?       @relation(fields: [userId, themeId, subthemeId], references: [userId, themeId, id])
+  audience               Audience?       @relation(fields: [userId, audienceId], references: [userId, id])
+  series                 BookSeries?     @relation(fields: [userId, seriesId], references: [userId, id])
+  revisions              BookRevision[]
+  jobs                   GenerationJob[]
+  bundles                BundleBook[]
+
+  @@unique([userId, id])
+  @@unique([userId, slug])
+  @@unique([seriesId, seriesOrder])
+  @@index([userId, status, createdAt, id])
+  @@index([userId, bookTypeId, createdAt])
+}
+
+// Revision snapshots pin AI content, prompts, engine versions, templates and policy.
+model BookRevision {
+  id                 String               @id @default(uuid()) @db.Uuid
+  userId             String               @db.Uuid
+  bookId             String               @db.Uuid
+  number             Int
+  configuration      Json
+  generationManifest Json
+  metadata           Json?
+  fingerprint        String?              @db.Char(64)
+  sealedAt           DateTime?            @db.Timestamptz(3)
+  createdAt          DateTime             @default(now()) @db.Timestamptz(3)
+  book               Book                 @relation(fields: [userId, bookId], references: [userId, id], onDelete: Cascade)
+  pages              BookPage[]
+  puzzles            Puzzle[]
+  fingerprints       ContentFingerprint[]
+  validationRuns     ValidationRun[]
+  uniquenessReports  UniquenessReport[]
+  approval           BookApproval?
+  exports            Export[]
+  covers             CoverDesign[]
+
+  @@unique([userId, id])
+  @@unique([bookId, number])
+  @@index([userId, fingerprint])
+}
+
+model Puzzle {
+  id            String       @id @default(uuid()) @db.Uuid
+  userId        String       @db.Uuid
+  revisionId    String       @db.Uuid
+  puzzleTypeId  String       @db.Uuid
+  engineVersion String       @db.VarChar(40)
+  seed          String       @db.VarChar(128)
+  configuration Json
+  data          Json
+  solution      Json
+  puzzleHash    String       @db.Char(64)
+  wordSetHash   String?      @db.Char(64)
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  revision      BookRevision @relation(fields: [userId, revisionId], references: [userId, id], onDelete: Cascade)
+  type          PuzzleType   @relation(fields: [puzzleTypeId], references: [id])
+  pages         BookPage[]
+
+  @@unique([userId, revisionId, id])
+  @@unique([revisionId, puzzleHash])
+  @@unique([revisionId, wordSetHash])
+}
+
+model BookPage {
+  id             String         @id @default(uuid()) @db.Uuid
+  userId         String         @db.Uuid
+  revisionId     String         @db.Uuid
+  pageNumber     Int
+  role           PageRole
+  title          String         @db.VarChar(240)
+  instructions   String?
+  seed           String         @db.VarChar(128)
+  puzzleId       String?        @db.Uuid
+  answerForId    String?        @unique @db.Uuid
+  content        Json
+  layoutSnapshot Json
+  semanticHash   String         @db.Char(64)
+  layoutHash     String         @db.Char(64)
+  revision       BookRevision   @relation(fields: [userId, revisionId], references: [userId, id], onDelete: Cascade)
+  puzzle         Puzzle?        @relation(fields: [userId, revisionId, puzzleId], references: [userId, revisionId, id])
+  answerFor      BookPage?      @relation("PageAnswer", fields: [userId, revisionId, answerForId], references: [userId, revisionId, id], onDelete: NoAction, onUpdate: NoAction)
+  answerPage     BookPage?      @relation("PageAnswer")
+  usages         ContentUsage[]
+
+  @@unique([userId, revisionId, id])
+  @@unique([revisionId, pageNumber])
+  @@unique([userId, revisionId, answerForId])
+  @@unique([revisionId, semanticHash])
+}
+
+model ContentUsage {
+  userId        String      @db.Uuid
+  revisionId    String      @db.Uuid
+  pageId        String      @db.Uuid
+  contentItemId String      @db.Uuid
+  snapshot      Json
+  page          BookPage    @relation(fields: [userId, revisionId, pageId], references: [userId, revisionId, id], onDelete: Cascade)
+  content       ContentItem @relation(fields: [userId, contentItemId], references: [userId, id])
+
+  @@id([pageId, contentItemId])
+  @@index([userId, contentItemId])
+}
+
+// Owner-scoped reservation ledger. Same-book revisions may reference original hashes;
+// service checks original revision's book before allowing that reuse.
+model ContentFingerprint {
+  id                   String          @id @default(uuid()) @db.Uuid
+  userId               String          @db.Uuid
+  originRevisionId     String          @db.Uuid
+  kind                 FingerprintKind
+  canonicalizerVersion String          @db.VarChar(40)
+  hash                 String          @db.Char(64)
+  createdAt            DateTime        @default(now()) @db.Timestamptz(3)
+  origin               BookRevision    @relation(fields: [userId, originRevisionId], references: [userId, id], onDelete: Restrict)
+
+  @@unique([userId, kind, canonicalizerVersion, hash])
+  @@index([originRevisionId])
+}
+
+model QualityPolicy {
+  id            String @id @default(uuid()) @db.Uuid
+  userId        String @db.Uuid
+  name          String @db.VarChar(160)
+  version       Int
+  configuration Json
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name, version])
+}
+
+model ValidationRun {
+  id               String             @id @default(uuid()) @db.Uuid
+  userId           String             @db.Uuid
+  revisionId       String             @db.Uuid
+  status           ValidationStatus   @default(PENDING)
+  policySnapshot   Json
+  validatorVersion String             @db.VarChar(40)
+  checkedPages     Int                @default(0)
+  startedAt        DateTime           @default(now()) @db.Timestamptz(3)
+  finishedAt       DateTime?          @db.Timestamptz(3)
+  revision         BookRevision       @relation(fields: [userId, revisionId], references: [userId, id], onDelete: Cascade)
+  results          ValidationResult[]
+
+  @@unique([userId, revisionId, id])
+  @@index([revisionId, startedAt])
+}
+
+model ValidationResult {
+  id         String        @id @default(uuid()) @db.Uuid
+  runId      String        @db.Uuid
+  rule       String        @db.VarChar(100)
+  severity   Severity
+  passed     Boolean
+  pageNumber Int?
+  message    String
+  details    Json?
+  run        ValidationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, severity, passed])
+}
+
+model UniquenessReport {
+  id               String       @id @default(uuid()) @db.Uuid
+  userId           String       @db.Uuid
+  revisionId       String       @db.Uuid
+  score            Int?
+  passed           Boolean
+  policySnapshot   Json
+  metrics          Json
+  algorithmVersion String       @db.VarChar(40)
+  comparedThrough  DateTime     @db.Timestamptz(3)
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  revision         BookRevision @relation(fields: [userId, revisionId], references: [userId, id], onDelete: Cascade)
+
+  @@index([revisionId, createdAt])
+}
+
+model BookApproval {
+  id           String       @id @default(uuid()) @db.Uuid
+  userId       String       @db.Uuid
+  revisionId   String       @unique @db.Uuid
+  approvedById String       @db.Uuid
+  approvedAt   DateTime     @default(now()) @db.Timestamptz(3)
+  revision     BookRevision @relation(fields: [userId, revisionId], references: [userId, id], onDelete: Cascade)
+  approver     User         @relation("Approver", fields: [approvedById], references: [id])
+
+  @@unique([userId, revisionId])
+}
+
+model BookTemplate {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  name           String   @db.VarChar(160)
+  version        Int
+  configuration  Json
+  supportedTypes String[]
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name, version])
+}
+
+model CoverTemplate {
+  id             String  @id @default(uuid()) @db.Uuid
+  userId         String  @db.Uuid
+  name           String  @db.VarChar(160)
+  version        Int
+  category       String  @db.VarChar(80)
+  configuration  Json
+  previewImage   String?
+  supportedSizes Json
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name, version])
+}
+
+model CoverDesign {
+  id               String       @id @default(uuid()) @db.Uuid
+  userId           String       @db.Uuid
+  revisionId       String       @db.Uuid
+  side             String       @db.VarChar(20)
+  templateSnapshot Json
+  configuration    Json
+  assetId          String?      @db.Uuid
+  revision         BookRevision @relation(fields: [userId, revisionId], references: [userId, id], onDelete: Cascade)
+  asset            Asset?       @relation(fields: [userId, assetId], references: [userId, id])
+
+  @@unique([revisionId, side])
+}
+
+model BookSeries {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  title       String   @db.VarChar(240)
+  description String?
+  branding    Json
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  books       Book[]
+
+  @@unique([userId, id])
+}
+
+model Bundle {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @db.Uuid
+  title       String       @db.VarChar(240)
+  description String?
+  metadata    Json?
+  createdAt   DateTime     @default(now()) @db.Timestamptz(3)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  books       BundleBook[]
+
+  @@unique([userId, id])
+}
+
+model BundleBook {
+  userId   String @db.Uuid
+  bundleId String @db.Uuid
+  bookId   String @db.Uuid
+  position Int
+  bundle   Bundle @relation(fields: [userId, bundleId], references: [userId, id], onDelete: Cascade)
+  book     Book   @relation(fields: [userId, bookId], references: [userId, id], onDelete: Restrict)
+
+  @@id([bundleId, bookId])
+  @@unique([bundleId, position])
+}
+
+model Asset {
+  id         String        @id @default(uuid()) @db.Uuid
+  userId     String        @db.Uuid
+  storageKey String        @unique @db.VarChar(500)
+  mediaType  String        @db.VarChar(100)
+  byteSize   BigInt
+  sha256     String        @db.Char(64)
+  width      Int?
+  height     Int?
+  source     String?
+  license    String?
+  createdAt  DateTime      @default(now()) @db.Timestamptz(3)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  covers     CoverDesign[]
+  exports    Export[]
+
+  @@unique([userId, id])
+  @@index([userId, createdAt, id])
+}
+
+model Export {
+  id            String       @id @default(uuid()) @db.Uuid
+  userId        String       @db.Uuid
+  revisionId    String       @db.Uuid
+  assetId       String       @db.Uuid
+  format        String       @db.VarChar(40)
+  isReviewCopy  Boolean      @default(true)
+  renderVersion String       @db.VarChar(40)
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  revision      BookRevision @relation(fields: [userId, revisionId], references: [userId, id], onDelete: Cascade)
+  asset         Asset        @relation(fields: [userId, assetId], references: [userId, id])
+
+  @@index([userId, createdAt, id])
+}
+
+model GenerationJob {
+  id             String           @id @default(uuid()) @db.Uuid
+  userId         String           @db.Uuid
+  bookId         String?          @db.Uuid
+  type           JobType
+  status         JobStatus        @default(QUEUED)
+  idempotencyKey String           @db.VarChar(160)
+  payload        Json
+  progress       Int              @default(0)
+  currentStep    String?          @db.VarChar(100)
+  attempts       Int              @default(0)
+  maxAttempts    Int              @default(3)
+  availableAt    DateTime         @default(now()) @db.Timestamptz(3)
+  leaseToken     String?          @db.Uuid
+  leaseExpiresAt DateTime?        @db.Timestamptz(3)
+  startedAt      DateTime?        @db.Timestamptz(3)
+  finishedAt     DateTime?        @db.Timestamptz(3)
+  errorCode      String?          @db.VarChar(100)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book           Book?            @relation(fields: [userId, bookId], references: [userId, id], onDelete: Cascade)
+  steps          GenerationStep[]
+  logs           GenerationLog[]
+  aiUsage        AIUsage[]
+
+  @@unique([userId, id])
+  @@unique([userId, idempotencyKey])
+  @@index([status, availableAt, createdAt])
+  @@index([status, leaseExpiresAt])
+  @@index([userId, createdAt, id])
+}
+
+model GenerationStep {
+  id          String        @id @default(uuid()) @db.Uuid
+  jobId       String        @db.Uuid
+  key         String        @db.VarChar(160)
+  status      JobStatus     @default(QUEUED)
+  attempts    Int           @default(0)
+  checkpoint  Json?
+  outputHash  String?       @db.Char(64)
+  completedAt DateTime?     @db.Timestamptz(3)
+  job         GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, key])
+}
+
+model GenerationLog {
+  id        BigInt        @id @default(autoincrement())
+  jobId     String        @db.Uuid
+  level     Severity
+  event     String        @db.VarChar(100)
+  metadata  Json
+  createdAt DateTime      @default(now()) @db.Timestamptz(3)
+  job       GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, createdAt])
+}
+
+model AIProvider {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  key       String    @db.VarChar(80)
+  name      String    @db.VarChar(160)
+  secretRef String?   @db.VarChar(160)
+  enabled   Boolean   @default(false)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  models    AIModel[]
+
+  @@unique([userId, id])
+  @@unique([userId, key])
+}
+
+model AIModel {
+  id              String     @id @default(uuid()) @db.Uuid
+  providerId      String     @db.Uuid
+  modelKey        String     @db.VarChar(160)
+  capabilities    Json
+  pricing         Json?
+  priceObservedAt DateTime?  @db.Timestamptz(3)
+  provider        AIProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, modelKey])
+}
+
+model PromptTemplate {
+  id                 String  @id @default(uuid()) @db.Uuid
+  userId             String  @db.Uuid
+  name               String  @db.VarChar(160)
+  type               String  @db.VarChar(80)
+  version            Int
+  systemPrompt       String
+  userPromptTemplate String
+  providerKey        String? @db.VarChar(80)
+  model              String? @db.VarChar(160)
+  temperature        Decimal @db.Decimal(3, 2)
+  active             Boolean @default(false)
+  outputSchema       Json
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name, version])
+}
+
+model AIUsage {
+  id            String        @id @default(uuid()) @db.Uuid
+  userId        String        @db.Uuid
+  jobId         String        @db.Uuid
+  provider      String        @db.VarChar(80)
+  model         String        @db.VarChar(160)
+  requestId     String?       @db.VarChar(200)
+  inputTokens   Int?
+  outputTokens  Int?
+  estimatedCost Decimal?      @db.Decimal(14, 8)
+  currency      String        @default("USD") @db.Char(3)
+  priceSnapshot Json?
+  succeeded     Boolean
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  job           GenerationJob @relation(fields: [userId, jobId], references: [userId, id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([jobId])
+}
