@@ -6,7 +6,7 @@ export function TemplatePreview({ book, page }: { book: { title: string; theme: 
     <rect width="612" height="792" fill="white" />
     {templateScene(book, page.pageNumber, page.role, page.puzzle).map((op, i) => {
       switch (op.kind) {
-        case "text": return <text key={i} x={op.x} y={op.y} fontSize={op.size} fontFamily="Arial, sans-serif" fontWeight={op.bold ? "bold" : "normal"} textAnchor={op.center ? "middle" : "start"} fill={op.color} textLength={op.text.length * op.size * .55 > op.width ? op.width : undefined} lengthAdjust="spacingAndGlyphs">{op.text}</text>;
+        case "text": return <text key={i} x={op.x} y={op.y} fontSize={op.size} fontFamily="Arial, sans-serif" fontWeight={op.bold ? "bold" : "normal"} textAnchor={op.center ? "middle" : "start"} fill={op.color} textLength={!op.fitted && op.text.length * op.size * .55 > op.width ? op.width : undefined} lengthAdjust="spacingAndGlyphs">{op.text}</text>;
         case "rect": return <rect key={i} x={op.x} y={op.y} width={op.w} height={op.h} fill={op.fill} stroke={op.stroke} strokeWidth={op.weight} />;
         case "line": return <line key={i} x1={op.x} y1={op.y} x2={op.x2} y2={op.y2} stroke={op.color} strokeWidth={op.weight} />;
         case "path": return <path key={i} d={op.path} transform={`translate(${op.x} ${op.y}) rotate(${op.angle}) scale(${op.scale})`} fill={op.fill} stroke={op.stroke} strokeWidth={op.weight} />;

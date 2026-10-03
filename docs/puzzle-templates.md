@@ -17,6 +17,14 @@ Each book contains 1-100 activities, a title page, and matching answer pages. Ch
 
 These deterministic vocabulary activities do not require an AI key. In custom-word mode, Sudoku and I Spy use printed words rather than generated pictures. Custom illustrations, automatic definition-writing, and mixed-template books are not part of this feature.
 
+## Creating a themed crossword book
+
+Crossword opens with **My own words** selected. Enter your book title and topic, then paste at least 12 different answers. Words-only mode creates scrambled-letter hints. For definition-based puzzles, select **Traditional crossword: my answers and clues** and enter 12-60 lines in `ANSWER | clue` format.
+
+Easy aims for 8 answers per grid, medium 10, and hard 12. The generator tries up to 40 layouts to reach that target and otherwise keeps the fullest connected grid with at least six answers. Each page uses a selection of your vocabulary; words may repeat between pages and not every supplied word is guaranteed to appear. Larger collections offer more variety.
+
+Puzzle and answer pages group numbered clues into Across and Down columns. The full PDF includes the title page, puzzles, and completed answer keys; a separate answer PDF is also available.
+
 ## Saved books and validation
 
 Saved picture-based Sudoku, I Spy, arithmetic color-code, everyday crossword, and pet/snack logic editions remain readable. Requests without a word source retain those original variants for compatibility. Older Word Search books with 12 words and color-code editions with zero-based keys remain readable.

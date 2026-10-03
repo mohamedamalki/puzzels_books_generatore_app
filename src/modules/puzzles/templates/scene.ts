@@ -1,8 +1,9 @@
 import { templateName } from "./catalog";
+import { sudokuTypography } from "./sudoku-typography";
 import type { TemplatePuzzle, LogicClue } from "./types";
 
 export type Draw =
-  | { kind: "text"; x: number; y: number; text: string; size: number; bold: boolean; center: boolean; width: number; color: string }
+  | { kind: "text"; x: number; y: number; text: string; size: number; bold: boolean; center: boolean; width: number; color: string; fitted?: boolean }
   | { kind: "rect"; x: number; y: number; w: number; h: number; fill: string; stroke: string; weight: number }
   | { kind: "line"; x: number; y: number; x2: number; y2: number; color: string; weight: number }
   | { kind: "path"; x: number; y: number; path: string; scale: number; angle: number; fill: string; stroke: string; weight: number };
@@ -65,19 +66,28 @@ export function templateScene(book: { title: string; theme: string; activityPage
   switch (d.kind) {
     case "crossword": {
       text(answer ? "Completed grid and answers for every clue." : "Read the clues. Write one letter in each white square.", 54, 117, 11);
-      const cell = 22, left = 141, top = 146;
+      const cell = 20, left = 156, top = 140;
       d.grid.forEach((row, r) => row.forEach((letter, c) => {
         rect(left + c * cell, top + r * cell, cell, cell, letter ? "#ffffff" : "#303030", .5);
         const entry = d.entries.find(e => e.row === r && e.column === c);
         if (entry) text(String(entry.number), left + c * cell + 2, top + r * cell + 7, 6);
         if (answer && letter) text(letter, left + (c + .5) * cell, top + r * cell + 17, 13, true, true);
       }));
-      d.entries.forEach((e, i) => {
-        const x = 54 + (i % 2) * 260, y = 504 + Math.floor(i / 2) * 36;
-        text(`${e.number} ${e.direction.toUpperCase()}${answer ? `: ${e.word}` : ` (${e.word.length})`}`, x, y, 10.5, true, false, 242);
-        const parts = wrap(e.clue, 43);
-        const lines = parts.length > 2 ? [parts[0]!, parts.slice(1).join(" ")] : parts;
-        lines.forEach((part, n) => text(part, x, y + 12 + n * 11, 10, false, false, 242));
+      (["across", "down"] as const).forEach((direction, column) => {
+        const x = 54 + column * 260;
+        text(direction.toUpperCase(), x, 467, 12, true, false, 244);
+        line(x, 475, x + 244, 475, .6);
+        const clues = d.entries.filter(entry => entry.direction === direction).map(entry => ({
+          entry, lines: wrap(entry.clue, 42),
+        }));
+        const units = clues.reduce((total, clue) => total + 1 + clue.lines.length, 0);
+        const leading = Math.min(13, 240 / Math.max(units, 1));
+        let y = 491;
+        clues.forEach(({ entry, lines }) => {
+          text(`${entry.number}. ${answer ? entry.word : `(${entry.word.length} letters)`}`, x, y, Math.min(11, leading), true, false, 244);
+          lines.forEach((part, n) => text(part, x, y + (n + 1) * leading, Math.min(10.5, leading - 1), false, false, 244));
+          y += (lines.length + 1) * leading;
+        });
       }); break;
     }
     case "math-maze": {
@@ -119,17 +129,24 @@ export function templateScene(book: { title: string; theme: string; activityPage
     }
     case "picture-sudoku": {
       text(`Use each ${d.words ? "word" : "picture"} once in every row, column, and bold 2 x 2 box.`, 54, 117, 11);
-      const left = 126, top = 169, cell = 90, grid = answer ? s.grid : d.grid;
+      const left = 90, top = 153, cell = 108, grid = answer ? s.grid : d.grid;
+      const typography = d.words ? sudokuTypography(d.words, cell - 24) : null;
       grid.forEach((row, r) => row.forEach((value, c) => {
         rect(left + c * cell, top + r * cell, cell, cell);
-        if (value && d.words) text(d.words[value - 1]!, left + (c + .5) * cell, top + (r + .5) * cell + 4, 12, true, true, cell - 10);
+        if (value && typography) {
+          const lines = typography.lines[value - 1]!, size = typography.size, leading = size * 1.4;
+          lines.forEach((part, i) => scene.push({ kind: "text", text: part,
+            x: left + (c + .5) * cell, y: top + (r + .5) * cell + size * .35 + (i - (lines.length - 1) / 2) * leading,
+            size, bold: true, center: true, width: cell - 24, color: ink, fitted: true }));
+        }
         else if (value) icon(d.symbols[value - 1]!, left + (c + .5) * cell, top + (r + .5) * cell, 23);
       }));
-      for (let i = 0; i <= 4; i += 2) { line(left + i * cell, top, left + i * cell, top + 360, 2.5); line(left, top + i * cell, left + 360, top + i * cell, 2.5); }
-      text(d.words ? "YOUR FOUR WORDS" : "YOUR FOUR PICTURES", 306, 579, 12, true, true);
+      for (let i = 0; i <= 4; i += 2) { line(left + i * cell, top, left + i * cell, top + 4 * cell, 2); line(left, top + i * cell, left + 4 * cell, top + i * cell, 2); }
+      text(d.words ? "WORD BANK" : "YOUR FOUR PICTURES", 306, 617, 10, true, true);
       d.symbols.forEach((symbol, i) => {
-        if (d.words) text(d.words[i]!, 156 + i * 100, 623, 11, true, true, 94);
-        else { icon(symbol, 156 + i * 100, 618, 20); text(pictureSymbols[symbol]!.name, 156 + i * 100, 658, 11, false, true); }
+        if (d.words) scene.push({ kind: "text", text: d.words[i]!, x: 198 + i % 2 * 216,
+          y: 648 + Math.floor(i / 2) * 27, size: 11, bold: true, center: true, width: 192, color: ink, fitted: true });
+        else { icon(symbol, 156 + i * 100, 651, 18); text(pictureSymbols[symbol]!.name, 156 + i * 100, 687, 11, false, true); }
       }); break;
     }
     case "i-spy": {

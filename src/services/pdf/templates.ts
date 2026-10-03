@@ -2,7 +2,7 @@ import { PDFDocument, StandardFonts, rgb, degrees } from "pdf-lib";
 import { templateScene } from "../../modules/puzzles/templates/scene";
 import type { TemplatePuzzle } from "../../modules/puzzles/templates/types";
 import type { GenerationConfig } from "../../modules/books/generation-input";
-export const TEMPLATE_RENDER_VERSION = "templates-1.2.0";
+export const TEMPLATE_RENDER_VERSION = "templates-1.4.0";
 const color = (hex: string) => rgb(parseInt(hex.slice(1, 3), 16) / 255, parseInt(hex.slice(3, 5), 16) / 255, parseInt(hex.slice(5, 7), 16) / 255);
 export async function renderTemplatePdf(config: GenerationConfig, puzzles: TemplatePuzzle[], answersOnly = false): Promise<Uint8Array> {
   if (puzzles.length !== config.activityPages) throw new Error("Missing puzzle pages");

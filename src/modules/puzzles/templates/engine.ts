@@ -91,6 +91,7 @@ function crossword(settings: TemplateSettings, random: () => number): Extract<Te
     return { word, clue: mixed === word ? `Repeat the letter ${word[0]} ${word.length} times.` : `Unscramble: ${mixed}` };
   }) : everydayClues;
   const target = Math.min(pool.length, settings.difficulty === "easy" ? 8 : settings.difficulty === "medium" ? 10 : 12), size = 15;
+  let best: Extract<TemplateData, { kind: "crossword" }> | undefined;
   for (let attempt = 0; attempt < 40; attempt++) {
     const grid = Array.from({ length: size }, () => Array<string>(size).fill(""));
     const directions = Array.from({ length: size }, () => Array<number>(size).fill(0));
@@ -119,8 +120,11 @@ function crossword(settings: TemplateSettings, random: () => number): Extract<Te
     if (entries.length < Math.min(target, 6)) continue;
     const starts = [...new Set(entries.map(e => e.row * size + e.column))].sort((a, b) => a - b);
     entries.forEach(e => { e.number = starts.indexOf(e.row * size + e.column) + 1; });
-    return { kind: "crossword", grid, entries: entries.sort((a, b) => a.number - b.number) };
+    const result = { kind: "crossword" as const, grid, entries: entries.sort((a, b) => a.number - b.number) };
+    if (!best || entries.length > best.entries.length) best = result;
+    if (entries.length === target) return result;
   }
+  if (best) return best;
   throw new DomainError("CROSSWORD_PLACEMENT", "These answers do not form a connected crossword. Add more words with shared letters.");
 }
 

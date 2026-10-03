@@ -1,6 +1,6 @@
 export const templateKeys = ["word-search", "crossword", "math-maze", "secret-code", "picture-sudoku", "i-spy", "color-by-code", "logic-puzzle"] as const;
 export type TemplateKey = typeof templateKeys[number];
-export const TEMPLATE_ENGINE_VERSION = "1.3.0";
+export const TEMPLATE_ENGINE_VERSION = "1.4.0";
 export const minimumTemplateWords: Record<TemplateKey, number> = {
   "word-search": 24, crossword: 12, "math-maze": 0, "secret-code": 10,
   "picture-sudoku": 4, "i-spy": 6, "color-by-code": 5, "logic-puzzle": 8,
