@@ -1,8 +1,8 @@
-// Helvetica Bold uppercase advance widths (1/1000 em). Arial has compatible
-// metrics. Keep a little extra space for browser font rendering differences.
-const advances = [722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611];
+// Conservative uppercase widths covering Nunito Bold and legacy Helvetica
+// exports, so every word keeps the same size across all cells and renderers.
+const advances = [744, 722, 722, 762, 667, 611, 778, 773, 282, 556, 722, 611, 868, 748, 785, 667, 785, 722, 667, 621, 738, 713, 1113, 672, 667, 611];
 function width(text: string) {
-  return [...text].reduce((sum, letter) => sum + (letter === "-" ? 333 : advances[letter.charCodeAt(0) - 65] ?? 1000), 0) / 1000 * 1.03;
+  return [...text].reduce((sum, letter) => sum + (letter === "-" ? 434 : advances[letter.charCodeAt(0) - 65] ?? 1000), 0) / 1000 * 1.03;
 }
 
 export function sudokuTypography(words: string[], availableWidth: number) {

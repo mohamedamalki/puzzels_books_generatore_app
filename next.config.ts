@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 const config: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   turbopack: { root: path.dirname(fileURLToPath(import.meta.url)) },
+  outputFileTracingIncludes: {
+    "/api/books/*/download": ["./node_modules/@fontsource/nunito/files/*-latin-*-normal.woff", "./node_modules/@fontsource/fredoka/files/*-latin-400-normal.woff"],
+  },
   // On Windows, restored dev caches have returned 404 for nested book routes.
   // Recompile on startup so approval and download handlers stay discoverable.
   experimental: { turbopackFileSystemCacheForDev: process.platform !== "win32" },

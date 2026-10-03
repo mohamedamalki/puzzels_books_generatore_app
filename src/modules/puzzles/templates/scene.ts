@@ -1,9 +1,10 @@
+import { decoratePage } from "./page-design";
 import { templateName } from "./catalog";
 import { sudokuTypography } from "./sudoku-typography";
 import type { TemplatePuzzle, LogicClue } from "./types";
 
 export type Draw =
-  | { kind: "text"; x: number; y: number; text: string; size: number; bold: boolean; center: boolean; width: number; color: string; fitted?: boolean }
+  | { kind: "text"; x: number; y: number; text: string; size: number; bold: boolean; center: boolean; width: number; color: string; fitted?: boolean; display?: boolean }
   | { kind: "rect"; x: number; y: number; w: number; h: number; fill: string; stroke: string; weight: number }
   | { kind: "line"; x: number; y: number; x2: number; y2: number; color: string; weight: number }
   | { kind: "path"; x: number; y: number; path: string; scale: number; angle: number; fill: string; stroke: string; weight: number };
@@ -56,9 +57,9 @@ export function templateScene(book: { title: string; theme: string; activityPage
     wrap(book.theme, 46).forEach((part, i) => text(part, 306, 490 + i * 23, 16, false, true, 450));
     text(`${book.activityPages} ${book.activityPages === 1 ? "activity" : "activities"} + complete answer keys`, 306, 560, 15, false, true, 450);
     text("Explore. Think. Solve.", 306, 640, 16, false, true);
-    return scene;
+    return decoratePage(scene, book.templateKey ?? (puzzle?.data.kind ?? "word-search"), role);
   }
-  if (!puzzle) return scene;
+  if (!puzzle) return decoratePage(scene, book.templateKey ?? "word-search", role);
   const answer = role === "ANSWER", d = puzzle.data, s = puzzle.solution;
   const index = answer ? pageNumber - book.activityPages - 1 : pageNumber - 1;
   text(`${answer ? "Answer key" : templateName(d.kind, "words" in d && !!d.words)} ${index}`, 54, 67, 23, true);
@@ -198,5 +199,5 @@ export function templateScene(book: { title: string; theme: string; activityPage
       break;
     }
   }
-  return scene;
+  return decoratePage(scene, book.templateKey ?? (puzzle?.data.kind ?? "word-search"), role);
 }
